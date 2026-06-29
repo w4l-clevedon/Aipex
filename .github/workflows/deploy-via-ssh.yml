@@ -1,0 +1,41 @@
+name: Deploy via SSH Git Pull
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'aipex-podcast-system-v2/**'
+      - '.github/workflows/deploy-via-ssh.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-aipex-ssh
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Pull latest code on WordPress server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.WP_SSH_HOST }}
+          username: ${{ secrets.WP_SSH_USERNAME }}
+          key: ${{ secrets.WP_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.WP_SSH_PORT }}
+          script: |
+            set -e
+            cd /var/www/vhosts/womensradiostation.com/httpdocs/wp-content/plugins/Aipex
+            git fetch origin main
+            git reset --hard origin/main
+            if command -v wp >/dev/null 2>&1; then
+              cd /var/www/vhosts/womensradiostation.com/httpdocs
+              wp plugin activate aipex-podcast-system-v2 || true
+              wp rewrite flush || true
+            fi
