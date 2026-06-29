@@ -14,15 +14,15 @@ class Aipex_Podcast_Post_Types {
             'rewrite'=>['slug'=>'show','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
         ]);
         register_post_type('aipex_presenter', [
-            'labels'=>['name'=>'Presenters','singular_name'=>'Presenter','add_new_item'=>'Add Presenter','edit_item'=>'Edit Presenter'],
-            'public'=>true,'publicly_queryable'=>true,'query_var'=>true,'show_ui'=>true,'show_in_menu'=>'edit.php?post_type=aipex_podcast','has_archive'=>'presenters',
-            'rewrite'=>['slug'=>'presenter','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
+            'labels'=>['name'=>'Hosts / Presenters','singular_name'=>'Host / Presenter','add_new_item'=>'Add Host / Presenter','edit_item'=>'Edit Host / Presenter'],
+            'public'=>true,'publicly_queryable'=>true,'query_var'=>'aipex_presenter','show_ui'=>true,'show_in_menu'=>'edit.php?post_type=aipex_podcast','has_archive'=>'hosts',
+            'rewrite'=>['slug'=>'host','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
         ]);
         register_post_type('aipex_guest', [
-            'labels'=>['name'=>'Guests','singular_name'=>'Guest'],'public'=>true,'show_ui'=>true,'show_in_menu'=>'edit.php?post_type=aipex_podcast','rewrite'=>['slug'=>'guest','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
+            'labels'=>['name'=>'Guests','singular_name'=>'Guest'],'public'=>true,'publicly_queryable'=>true,'query_var'=>true,'show_ui'=>true,'show_in_menu'=>'edit.php?post_type=aipex_podcast','has_archive'=>'guests','rewrite'=>['slug'=>'guest','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
         ]);
         register_post_type('aipex_sponsor', [
-            'labels'=>['name'=>'Sponsors','singular_name'=>'Sponsor'],'public'=>true,'show_ui'=>true,'show_in_menu'=>'edit.php?post_type=aipex_podcast','rewrite'=>['slug'=>'sponsor','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
+            'labels'=>['name'=>'Sponsors','singular_name'=>'Sponsor'],'public'=>true,'publicly_queryable'=>true,'query_var'=>true,'show_ui'=>true,'show_in_menu'=>'edit.php?post_type=aipex_podcast','has_archive'=>'sponsors','rewrite'=>['slug'=>'sponsor','with_front'=>false],'supports'=>['title','editor','thumbnail','excerpt'],'show_in_rest'=>true
         ]);
     }
 }
