@@ -65,8 +65,23 @@ jobs:
             test -f "$PLUGIN_DIR/aipex-podcast-system.php"
             test -d "$PLUGIN_DIR/includes"
 
-            echo "Checking PHP syntax"
-            find "$PLUGIN_DIR" -name '*.php' -print0 | xargs -0 -n1 php -l >/tmp/aipex-php-lint.log
+            PHP_BIN=""
+            if command -v php >/dev/null 2>&1; then
+              PHP_BIN="php"
+            elif [ -x /opt/plesk/php/8.3/bin/php ]; then
+              PHP_BIN="/opt/plesk/php/8.3/bin/php"
+            elif [ -x /opt/plesk/php/8.2/bin/php ]; then
+              PHP_BIN="/opt/plesk/php/8.2/bin/php"
+            elif [ -x /opt/plesk/php/8.1/bin/php ]; then
+              PHP_BIN="/opt/plesk/php/8.1/bin/php"
+            fi
+
+            if [ -n "$PHP_BIN" ]; then
+              echo "Checking PHP syntax with $PHP_BIN"
+              find "$PLUGIN_DIR" -name '*.php' -print0 | xargs -0 -n1 "$PHP_BIN" -l >/tmp/aipex-php-lint.log
+            else
+              echo "PHP CLI not found; skipping PHP syntax check"
+            fi
 
             if command -v wp >/dev/null 2>&1; then
               cd "$WP_DIR"
