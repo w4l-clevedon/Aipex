@@ -1,0 +1,46 @@
+name: Build Plugin ZIP
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: Build valid WordPress plugin ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate plugin folder
+        run: |
+          test -f aipex-podcast-system-v2/aipex-podcast-system.php
+          test -d aipex-podcast-system-v2/includes
+
+      - name: Build plugin ZIP
+        run: |
+          rm -rf build
+          mkdir -p build
+          zip -r build/aipex-podcast-system-v2.zip aipex-podcast-system-v2 \
+            -x "*.git*" \
+            -x "*/node_modules/*" \
+            -x "*/vendor/*" \
+            -x "*.DS_Store" \
+            -x "*/.aipex-fix-note.txt"
+
+      - name: Upload plugin ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aipex-podcast-system-v2
+          path: build/aipex-podcast-system-v2.zip
+          if-no-files-found: error
