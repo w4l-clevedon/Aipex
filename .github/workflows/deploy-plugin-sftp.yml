@@ -2,69 +2,9 @@ name: Deploy Plugin to WordPress
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'aipex-podcast-system-v2/**'
-      - '.github/workflows/deploy-plugin-sftp.yml'
-
-permissions:
-  contents: read
-
-concurrency:
-  group: deploy-aipex-podcast-system-v2
-  cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy plugin folder by SFTP/SSH
+  disabled:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Validate plugin folder
-        run: |
-          test -f aipex-podcast-system-v2/aipex-podcast-system.php
-          test -d aipex-podcast-system-v2/includes
-
-      - name: Prepare release folder
-        run: |
-          rm -rf release
-          mkdir -p release/aipex-podcast-system-v2
-          rsync -a --delete \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='node_modules' \
-            --exclude='vendor' \
-            --exclude='*.zip' \
-            --exclude='.DS_Store' \
-            aipex-podcast-system-v2/ release/aipex-podcast-system-v2/
-
-      - name: Deploy by SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.6
-        with:
-          username: ${{ secrets.WP_SFTP_USERNAME }}
-          server: ${{ secrets.WP_SFTP_HOST }}
-          port: ${{ secrets.WP_SFTP_PORT }}
-          ssh_private_key: ${{ secrets.WP_SFTP_PRIVATE_KEY }}
-          local_path: './release/aipex-podcast-system-v2/*'
-          remote_path: ${{ secrets.WP_PLUGIN_PATH }}
-          sftpArgs: '-o ConnectTimeout=10'
-
-      - name: Flush rewrites with WP-CLI
-        if: ${{ secrets.WP_SSH_HOST != '' && secrets.WP_SSH_USERNAME != '' && secrets.WP_SSH_PRIVATE_KEY != '' && secrets.WP_PATH != '' }}
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.WP_SSH_HOST }}
-          username: ${{ secrets.WP_SSH_USERNAME }}
-          key: ${{ secrets.WP_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.WP_SSH_PORT }}
-          script: |
-            cd "${{ secrets.WP_PATH }}"
-            if command -v wp >/dev/null 2>&1; then
-              wp plugin activate aipex-podcast-system-v2 --allow-root || true
-              wp rewrite flush --allow-root || true
-            fi
+      - run: echo "Deploy workflow temporarily disabled while fixing syntax."
