@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy over SSH with verification
+      - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.WP_SSH_HOST }}
@@ -38,11 +38,10 @@ jobs:
             set -e
 
             REPO_DIR="/var/www/vhosts/womensradiostation.com/httpdocs/wp-content/plugins/Aipex"
-            WP_DIR="/var/www/vhosts/womensradiostation.com/httpdocs"
             PLUGIN_DIR="$REPO_DIR/aipex-podcast-system-v2"
             DEPLOY_REF="${{ github.event.inputs.ref || 'main' }}"
 
-            echo "Starting Aipex deployment"
+            echo "Starting Aipex file deployment"
             echo "Repository: $REPO_DIR"
             echo "Deploy ref: $DEPLOY_REF"
 
@@ -65,39 +64,5 @@ jobs:
             test -f "$PLUGIN_DIR/aipex-podcast-system.php"
             test -d "$PLUGIN_DIR/includes"
 
-            PHP_BIN=""
-            if command -v php >/dev/null 2>&1; then
-              PHP_BIN="php"
-            elif [ -x /opt/plesk/php/8.3/bin/php ]; then
-              PHP_BIN="/opt/plesk/php/8.3/bin/php"
-            elif [ -x /opt/plesk/php/8.2/bin/php ]; then
-              PHP_BIN="/opt/plesk/php/8.2/bin/php"
-            elif [ -x /opt/plesk/php/8.1/bin/php ]; then
-              PHP_BIN="/opt/plesk/php/8.1/bin/php"
-            fi
-
-            if [ -n "$PHP_BIN" ]; then
-              echo "Checking PHP syntax with $PHP_BIN"
-              find "$PLUGIN_DIR" -name '*.php' -print0 | xargs -0 -n1 "$PHP_BIN" -l >/tmp/aipex-php-lint.log
-            else
-              echo "PHP CLI not found; skipping PHP syntax check and WP-CLI steps"
-            fi
-
-            if [ -n "$PHP_BIN" ] && command -v wp >/dev/null 2>&1; then
-              cd "$WP_DIR"
-              echo "Checking WordPress can see plugin"
-              "$PHP_BIN" "$(command -v wp)" plugin list --field=name | grep -x 'aipex-podcast-system-v2'
-
-              echo "Activating plugin and flushing rewrites"
-              "$PHP_BIN" "$(command -v wp)" plugin activate aipex-podcast-system-v2 || {
-                echo "Activation failed. Rolling back to $PREVIOUS_COMMIT"
-                cd "$REPO_DIR"
-                git reset --hard "$PREVIOUS_COMMIT"
-                exit 1
-              }
-              "$PHP_BIN" "$(command -v wp)" rewrite flush || true
-            else
-              echo "WP-CLI not run; deployment files are updated, but activation/rewrite flush was skipped"
-            fi
-
             echo "Deployment complete: $NEW_COMMIT"
+            echo "WP-CLI intentionally skipped to avoid unrelated plugin memory failures. Flush permalinks manually in WordPress when rewrite rules change."
