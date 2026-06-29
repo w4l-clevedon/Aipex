@@ -2,6 +2,11 @@ name: Deploy via SSH Git Pull
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or commit to deploy'
+        required: false
+        default: 'main'
   push:
     branches:
       - main
@@ -22,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy over SSH
+      - name: Deploy over SSH with verification
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.WP_SSH_HOST }}
@@ -31,11 +36,53 @@ jobs:
           port: ${{ secrets.WP_SSH_PORT }}
           script: |
             set -e
-            cd /var/www/vhosts/womensradiostation.com/httpdocs/wp-content/plugins/Aipex
-            git fetch origin main
-            git reset --hard origin/main
-            if command -v wp >/dev/null 2>&1; then
-              cd /var/www/vhosts/womensradiostation.com/httpdocs
-              wp plugin activate aipex-podcast-system-v2 || true
-              wp rewrite flush || true
+
+            REPO_DIR="/var/www/vhosts/womensradiostation.com/httpdocs/wp-content/plugins/Aipex"
+            WP_DIR="/var/www/vhosts/womensradiostation.com/httpdocs"
+            PLUGIN_DIR="$REPO_DIR/aipex-podcast-system-v2"
+            DEPLOY_REF="${{ github.event.inputs.ref || 'main' }}"
+
+            echo "Starting Aipex deployment"
+            echo "Repository: $REPO_DIR"
+            echo "Deploy ref: $DEPLOY_REF"
+
+            cd "$REPO_DIR"
+            PREVIOUS_COMMIT=$(git rev-parse HEAD)
+            echo "Previous commit: $PREVIOUS_COMMIT"
+
+            git fetch origin main --tags
+
+            if [ "$DEPLOY_REF" = "main" ]; then
+              git reset --hard origin/main
+            else
+              git reset --hard "$DEPLOY_REF"
             fi
+
+            NEW_COMMIT=$(git rev-parse HEAD)
+            echo "New commit: $NEW_COMMIT"
+
+            echo "Validating plugin files"
+            test -f "$PLUGIN_DIR/aipex-podcast-system.php"
+            test -d "$PLUGIN_DIR/includes"
+
+            echo "Checking PHP syntax"
+            find "$PLUGIN_DIR" -name '*.php' -print0 | xargs -0 -n1 php -l >/tmp/aipex-php-lint.log
+
+            if command -v wp >/dev/null 2>&1; then
+              cd "$WP_DIR"
+              echo "Checking WordPress can see plugin"
+              wp plugin list --field=name | grep -x 'aipex-podcast-system-v2'
+
+              echo "Activating plugin and flushing rewrites"
+              wp plugin activate aipex-podcast-system-v2 || {
+                echo "Activation failed. Rolling back to $PREVIOUS_COMMIT"
+                cd "$REPO_DIR"
+                git reset --hard "$PREVIOUS_COMMIT"
+                exit 1
+              }
+              wp rewrite flush || true
+            else
+              echo "WP-CLI not found; skipping WordPress activation and rewrite flush"
+            fi
+
+            echo "Deployment complete: $NEW_COMMIT"
