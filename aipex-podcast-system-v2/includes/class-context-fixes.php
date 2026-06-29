@@ -4,6 +4,11 @@ if (!defined('ABSPATH')) exit;
 class Aipex_Podcast_Context_Fixes {
     public static function init(){
         add_action('init', [__CLASS__, 'register_post_types'], 6);
+        add_action('init', [__CLASS__, 'register_rewrite_rules'], 7);
+        add_filter('query_vars', [__CLASS__, 'register_query_vars']);
+        add_action('parse_request', [__CLASS__, 'recover_presenter_request'], 1);
+        add_action('template_redirect', [__CLASS__, 'recover_presenter_404'], 1);
+        add_action('admin_init', [__CLASS__, 'maybe_flush_presenter_rewrites']);
         add_action('init', [__CLASS__, 'replace_context_shortcodes'], 30);
         add_action('plugins_loaded', [__CLASS__, 'replace_ajax_handlers'], 30);
     }
@@ -22,6 +27,80 @@ class Aipex_Podcast_Context_Fixes {
             'supports'=>['title','editor','thumbnail','excerpt'],
             'show_in_rest'=>true,
         ]);
+    }
+
+    public static function register_rewrite_rules(){
+        add_rewrite_rule('^presenter/([^/]+)/?$', 'index.php?post_type=aipex_presenter&name=$matches[1]&aipex_presenter=$matches[1]', 'top');
+        add_rewrite_rule('^presenter/([^/]+)/page/([0-9]+)/?$', 'index.php?post_type=aipex_presenter&name=$matches[1]&aipex_presenter=$matches[1]&paged=$matches[2]', 'top');
+        add_rewrite_rule('^presenters/?$', 'index.php?post_type=aipex_presenter', 'top');
+    }
+
+    public static function register_query_vars($vars){
+        $vars[] = 'aipex_presenter';
+        return array_values(array_unique($vars));
+    }
+
+    public static function maybe_flush_presenter_rewrites(){
+        $key = 'aipex_presenter_rewrite_version';
+        $version = defined('AIPEX_PODCAST_VERSION') ? AIPEX_PODCAST_VERSION : '1';
+        if (get_option($key) !== $version) {
+            self::register_post_types();
+            self::register_rewrite_rules();
+            flush_rewrite_rules(false);
+            update_option($key, $version, false);
+        }
+    }
+
+    private static function presenter_slug_from_request(){
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $path = trim((string) wp_parse_url($request_uri, PHP_URL_PATH), '/');
+        $home_path = trim((string) wp_parse_url(home_url('/'), PHP_URL_PATH), '/');
+        if ($home_path && str_starts_with($path, $home_path . '/')) {
+            $path = substr($path, strlen($home_path) + 1);
+        }
+        if (preg_match('~^presenter/([^/]+)/?$~', $path, $matches)) {
+            return sanitize_title($matches[1]);
+        }
+        return '';
+    }
+
+    private static function presenter_by_slug($slug){
+        $slug = sanitize_title($slug);
+        if (!$slug) return null;
+        $post = get_page_by_path($slug, OBJECT, 'aipex_presenter');
+        if ($post && $post->post_status !== 'trash') return $post;
+        $posts = get_posts([
+            'name' => $slug,
+            'post_type' => 'aipex_presenter',
+            'post_status' => ['publish','draft','pending','private','future'],
+            'numberposts' => 1,
+            'fields' => 'all',
+        ]);
+        return $posts ? $posts[0] : null;
+    }
+
+    public static function recover_presenter_request($wp){
+        $slug = '';
+        if (!empty($wp->query_vars['aipex_presenter'])) $slug = $wp->query_vars['aipex_presenter'];
+        if (!$slug) $slug = self::presenter_slug_from_request();
+        if (!$slug) return;
+        $post = self::presenter_by_slug($slug);
+        if (!$post) return;
+        $wp->query_vars['post_type'] = 'aipex_presenter';
+        $wp->query_vars['name'] = $post->post_name;
+        $wp->query_vars['p'] = $post->ID;
+        $wp->query_vars['page_id'] = '';
+        $wp->query_vars['error'] = '';
+    }
+
+    public static function recover_presenter_404(){
+        if (!is_404()) return;
+        $slug = self::presenter_slug_from_request();
+        if (!$slug) return;
+        $post = self::presenter_by_slug($slug);
+        if (!$post || $post->post_status !== 'publish') return;
+        wp_safe_redirect(get_permalink($post), 301);
+        exit;
     }
 
     public static function replace_context_shortcodes(){
