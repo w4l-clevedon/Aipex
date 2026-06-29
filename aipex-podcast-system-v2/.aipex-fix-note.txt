@@ -1,0 +1,1 @@
+Relationship and permalink fixes are being applied from the real source tree.
