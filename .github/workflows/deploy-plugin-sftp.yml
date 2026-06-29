@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy plugin folder by SFTP/SSH
+    name: Deploy plugin folder by SFTP
     runs-on: ubuntu-latest
 
     steps:
@@ -53,18 +53,3 @@ jobs:
           local_path: './release/aipex-podcast-system-v2/*'
           remote_path: ${{ secrets.WP_PLUGIN_PATH }}
           sftpArgs: '-o ConnectTimeout=10'
-
-      - name: Flush rewrites with WP-CLI
-        if: ${{ secrets.WP_SSH_HOST != '' && secrets.WP_SSH_USERNAME != '' && secrets.WP_SSH_PRIVATE_KEY != '' && secrets.WP_PATH != '' }}
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.WP_SSH_HOST }}
-          username: ${{ secrets.WP_SSH_USERNAME }}
-          key: ${{ secrets.WP_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.WP_SSH_PORT }}
-          script: |
-            cd "${{ secrets.WP_PATH }}"
-            if command -v wp >/dev/null 2>&1; then
-              wp plugin activate aipex-podcast-system-v2 --allow-root || true
-              wp rewrite flush --allow-root || true
-            fi
