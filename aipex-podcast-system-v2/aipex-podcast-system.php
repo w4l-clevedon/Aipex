@@ -16,6 +16,7 @@ require_once AIPEX_PODCAST_DIR.'includes/class-core.php';
 require_once AIPEX_PODCAST_DIR.'includes/class-post-types.php';
 require_once AIPEX_PODCAST_DIR.'includes/class-acf.php';
 require_once AIPEX_PODCAST_DIR.'includes/class-fields.php';
+require_once AIPEX_PODCAST_DIR.'includes/class-relationships.php';
 require_once AIPEX_PODCAST_DIR.'includes/class-utils.php';
 require_once AIPEX_PODCAST_DIR.'includes/class-shortcodes.php';
 require_once AIPEX_PODCAST_DIR.'includes/class-admin.php';
