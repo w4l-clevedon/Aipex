@@ -3,36 +3,25 @@
 defined('ABSPATH') || exit;
 
 class Aipex_Language_OS_Importer {
-    private string $storage_root;
-    private array $log = array(
-        'imported' => array(),
-        'ignored' => array(),
-        'duplicates' => array(),
-        'failed' => array(),
-        'lessons_created' => array(),
-        'materials_created' => array(),
-    );
+    private $storage_root;
+    private $log = array();
 
     public function __construct() {
         Aipex_Language_OS_Activator::ensure_storage_protection();
         $upload_dir = wp_upload_dir();
         $this->storage_root = trailingslashit($upload_dir['basedir']) . 'aipex-language-os/protected';
+        $this->reset_log();
     }
 
-    public function import_uploaded_zips(int $language_id, int $course_id, array $files): array {
+    public function import_uploaded_zips($language_id, $course_id, $files) {
         $results = array();
-        $normalised = $this->normalise_uploads($files);
-
-        foreach ($normalised as $file) {
-            $results[] = $this->import_zip($language_id, $course_id, $file);
+        foreach ($this->normalise_uploads($files) as $file) {
+            $results[] = $this->import_zip((int) $language_id, (int) $course_id, $file);
         }
-
         return $results;
     }
 
-    private function import_zip(int $language_id, int $course_id, array $file): array {
-        global $wpdb;
-
+    private function import_zip($language_id, $course_id, $file) {
         $this->reset_log();
 
         if (! class_exists('ZipArchive')) {
@@ -45,8 +34,7 @@ class Aipex_Language_OS_Importer {
 
         $zip_filename = sanitize_file_name($file['name']);
         $zip_check = wp_check_filetype_and_ext($file['tmp_name'], $zip_filename);
-
-        if (($zip_check['ext'] ?? '') !== 'zip') {
+        if (! isset($zip_check['ext']) || $zip_check['ext'] !== 'zip') {
             return $this->error_result('Only ZIP files are supported.');
         }
 
@@ -55,7 +43,6 @@ class Aipex_Language_OS_Importer {
         wp_mkdir_p($pack_dir);
 
         $stored_zip_path = trailingslashit($pack_dir) . $zip_filename;
-
         if (! move_uploaded_file($file['tmp_name'], $stored_zip_path)) {
             $this->update_course_pack($pack_id, 'failed', $stored_zip_path);
             return $this->error_result('ZIP upload could not be moved into protected storage.');
@@ -64,21 +51,17 @@ class Aipex_Language_OS_Importer {
         $this->update_course_pack($pack_id, 'extracting', $stored_zip_path);
 
         $zip = new ZipArchive();
-        $opened = $zip->open($stored_zip_path);
-
-        if ($opened !== true) {
+        if ($zip->open($stored_zip_path) !== true) {
             $this->update_course_pack($pack_id, 'failed', $stored_zip_path);
             return $this->error_result('ZIP file could not be opened.');
         }
 
         for ($index = 0; $index < $zip->numFiles; $index++) {
             $stat = $zip->statIndex($index);
-            $entry_name = $stat['name'] ?? '';
-
-            if ($entry_name === '' || str_ends_with($entry_name, '/')) {
+            $entry_name = isset($stat['name']) ? $stat['name'] : '';
+            if ($entry_name === '' || substr($entry_name, -1) === '/') {
                 continue;
             }
-
             $this->process_zip_entry($zip, $entry_name, $language_id, $course_id, $pack_id, $pack_dir);
         }
 
@@ -95,16 +78,14 @@ class Aipex_Language_OS_Importer {
         );
     }
 
-    private function process_zip_entry(ZipArchive $zip, string $entry_name, int $language_id, int $course_id, int $pack_id, string $pack_dir): void {
+    private function process_zip_entry($zip, $entry_name, $language_id, $course_id, $pack_id, $pack_dir) {
         $safe_relative = $this->safe_relative_path($entry_name);
-
         if ($safe_relative === null) {
             $this->log['failed'][] = array('file' => $entry_name, 'reason' => 'Unsafe path skipped.');
             return;
         }
 
         $detected_type = $this->detect_type($entry_name);
-
         if ($detected_type === 'ignored') {
             $this->log['ignored'][] = $entry_name;
             return;
@@ -121,14 +102,12 @@ class Aipex_Language_OS_Importer {
 
         $contents = stream_get_contents($stream);
         fclose($stream);
-
         if ($contents === false) {
             $this->log['failed'][] = array('file' => $entry_name, 'reason' => 'Could not extract file contents.');
             return;
         }
 
         $checksum = hash('sha256', $contents);
-
         if ($this->checksum_exists($checksum)) {
             $this->log['duplicates'][] = $entry_name;
             return;
@@ -154,11 +133,9 @@ class Aipex_Language_OS_Importer {
         $this->log['imported'][] = array('asset_id' => $asset_id, 'file' => $entry_name, 'type' => $detected_type);
     }
 
-    private function create_course_pack(int $language_id, int $course_id, string $zip_filename, string $status): int {
+    private function create_course_pack($language_id, $course_id, $zip_filename, $status) {
         global $wpdb;
-        $table = $wpdb->prefix . 'aipex_language_os_course_packs';
-
-        $wpdb->insert($table, array(
+        $wpdb->insert($wpdb->prefix . 'aipex_language_os_course_packs', array(
             'language_id' => $language_id,
             'course_id' => $course_id,
             'zip_filename' => $zip_filename,
@@ -167,15 +144,12 @@ class Aipex_Language_OS_Importer {
             'imported_at' => current_time('mysql'),
             'import_log' => wp_json_encode($this->log),
         ), array('%d', '%d', '%s', '%s', '%s', '%s', '%s'));
-
         return (int) $wpdb->insert_id;
     }
 
-    private function update_course_pack(int $pack_id, string $status, string $stored_zip_path): void {
+    private function update_course_pack($pack_id, $status, $stored_zip_path) {
         global $wpdb;
-        $table = $wpdb->prefix . 'aipex_language_os_course_packs';
-
-        $wpdb->update($table, array(
+        $wpdb->update($wpdb->prefix . 'aipex_language_os_course_packs', array(
             'stored_zip_path' => $stored_zip_path,
             'import_status' => $status,
             'imported_at' => current_time('mysql'),
@@ -183,147 +157,131 @@ class Aipex_Language_OS_Importer {
         ), array('id' => $pack_id), array('%s', '%s', '%s', '%s'), array('%d'));
     }
 
-    private function create_asset(int $language_id, int $course_id, int $pack_id, string $original_filename, string $path, string $detected_type, string $checksum): int {
+    private function create_asset($language_id, $course_id, $pack_id, $original_filename, $path, $detected_type, $checksum) {
         global $wpdb;
-        $table = $wpdb->prefix . 'aipex_language_os_course_assets';
-        $mime_type = wp_check_filetype($path)['type'] ?? '';
-
-        $wpdb->insert($table, array(
+        $filetype = wp_check_filetype($path);
+        $wpdb->insert($wpdb->prefix . 'aipex_language_os_course_assets', array(
             'language_id' => $language_id,
             'course_id' => $course_id,
             'course_pack_id' => $pack_id,
             'original_filename' => $original_filename,
             'stored_file_path' => $path,
             'detected_type' => $detected_type,
-            'mime_type' => $mime_type,
-            'file_size' => filesize($path) ?: 0,
+            'mime_type' => isset($filetype['type']) ? $filetype['type'] : '',
+            'file_size' => filesize($path) ? filesize($path) : 0,
             'checksum' => $checksum,
             'import_status' => 'imported',
         ), array('%d', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s'));
-
         return (int) $wpdb->insert_id;
     }
 
-    private function create_lesson_candidate(int $course_id, int $asset_id, string $entry_name, string $path): int {
+    private function create_lesson_candidate($course_id, $asset_id, $entry_name, $path) {
         global $wpdb;
-        $table = $wpdb->prefix . 'aipex_language_os_lessons';
-        $title = $this->title_from_filename($entry_name);
-        $lesson_number = $this->next_lesson_number($course_id);
-
-        $wpdb->insert($table, array(
+        $wpdb->insert($wpdb->prefix . 'aipex_language_os_lessons', array(
             'course_id' => $course_id,
             'primary_asset_id' => $asset_id,
-            'lesson_number' => $lesson_number,
-            'title' => $title,
+            'lesson_number' => $this->next_lesson_number($course_id),
+            'title' => $this->title_from_filename($entry_name),
             'audio_source' => $path,
             'duration' => 0,
             'transcript_status' => 'not_started',
             'processed_status' => 'pending',
         ), array('%d', '%d', '%d', '%s', '%s', '%d', '%s', '%s'));
-
         return (int) $wpdb->insert_id;
     }
 
-    private function create_supporting_material(int $course_id, int $asset_id, string $material_type, string $entry_name): int {
+    private function create_supporting_material($course_id, $asset_id, $material_type, $entry_name) {
         global $wpdb;
-        $table = $wpdb->prefix . 'aipex_language_os_supporting_materials';
-
-        $wpdb->insert($table, array(
+        $wpdb->insert($wpdb->prefix . 'aipex_language_os_supporting_materials', array(
             'course_id' => $course_id,
             'asset_id' => $asset_id,
             'material_type' => $material_type,
             'title' => $this->title_from_filename($entry_name),
             'processed_status' => 'pending',
         ), array('%d', '%d', '%s', '%s', '%s'));
-
         return (int) $wpdb->insert_id;
     }
 
-    private function checksum_exists(string $checksum): bool {
+    private function checksum_exists($checksum) {
         global $wpdb;
         $table = $wpdb->prefix . 'aipex_language_os_course_assets';
-
         return (bool) $wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE checksum = %s LIMIT 1", $checksum));
     }
 
-    private function next_lesson_number(int $course_id): int {
+    private function next_lesson_number($course_id) {
         global $wpdb;
         $table = $wpdb->prefix . 'aipex_language_os_lessons';
-
         return 1 + (int) $wpdb->get_var($wpdb->prepare("SELECT COALESCE(MAX(lesson_number), 0) FROM {$table} WHERE course_id = %d", $course_id));
     }
 
-    private function detect_type(string $filename): string {
+    private function detect_type($filename) {
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-
-        return match ($ext) {
-            'mp3' => 'audio',
-            'pdf' => 'document',
-            'jpg', 'jpeg' => 'image',
-            default => 'ignored',
-        };
+        if ($ext === 'mp3') {
+            return 'audio';
+        }
+        if ($ext === 'pdf') {
+            return 'document';
+        }
+        if ($ext === 'jpg' || $ext === 'jpeg') {
+            return 'image';
+        }
+        return 'ignored';
     }
 
-    private function safe_relative_path(string $path): ?string {
+    private function safe_relative_path($path) {
         $path = str_replace('\\', '/', $path);
         $path = preg_replace('#/+#', '/', $path);
-        $parts = array_filter(explode('/', $path), static fn($part) => $part !== '' && $part !== '.');
+        $parts = array_filter(explode('/', $path));
         $safe = array();
 
         foreach ($parts as $part) {
-            if ($part === '..') {
+            if ($part === '..' || $part === '.') {
                 return null;
             }
             $safe[] = sanitize_file_name($part);
         }
 
-        if (empty($safe)) {
-            return null;
-        }
-
-        return implode('/', $safe);
+        return empty($safe) ? null : implode('/', $safe);
     }
 
-    private function pack_dir(int $language_id, int $course_id, int $pack_id): string {
-        return trailingslashit($this->storage_root) . 'language-' . $language_id . '/course-' . $course_id . '/pack-' . $pack_id;
+    private function pack_dir($language_id, $course_id, $pack_id) {
+        return trailingslashit($this->storage_root) . 'language-' . (int) $language_id . '/course-' . (int) $course_id . '/pack-' . (int) $pack_id;
     }
 
-    private function title_from_filename(string $filename): string {
+    private function title_from_filename($filename) {
         $name = pathinfo(basename($filename), PATHINFO_FILENAME);
-        $name = str_replace(array('-', '_'), ' ', $name);
-        return trim(ucwords($name));
+        return trim(ucwords(str_replace(array('-', '_'), ' ', $name)));
     }
 
-    private function normalise_uploads(array $files): array {
+    private function normalise_uploads($files) {
         $normalised = array();
-
         if (! isset($files['name'])) {
             return $normalised;
         }
 
         if (is_array($files['name'])) {
             foreach ($files['name'] as $index => $name) {
-                if (($files['error'][$index] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                if (isset($files['error'][$index]) && $files['error'][$index] === UPLOAD_ERR_OK) {
                     $normalised[] = array(
                         'name' => $name,
-                        'type' => $files['type'][$index] ?? '',
-                        'tmp_name' => $files['tmp_name'][$index] ?? '',
-                        'error' => $files['error'][$index] ?? UPLOAD_ERR_NO_FILE,
-                        'size' => $files['size'][$index] ?? 0,
+                        'type' => isset($files['type'][$index]) ? $files['type'][$index] : '',
+                        'tmp_name' => isset($files['tmp_name'][$index]) ? $files['tmp_name'][$index] : '',
+                        'error' => $files['error'][$index],
+                        'size' => isset($files['size'][$index]) ? $files['size'][$index] : 0,
                     );
                 }
             }
             return $normalised;
         }
 
-        if (($files['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+        if (isset($files['error']) && $files['error'] === UPLOAD_ERR_OK) {
             $normalised[] = $files;
         }
 
         return $normalised;
     }
 
-    private function reset_log(): void {
+    private function reset_log() {
         $this->log = array(
             'imported' => array(),
             'ignored' => array(),
@@ -334,7 +292,7 @@ class Aipex_Language_OS_Importer {
         );
     }
 
-    private function error_result(string $message): array {
+    private function error_result($message) {
         return array(
             'status' => 'failed',
             'message' => $message,
