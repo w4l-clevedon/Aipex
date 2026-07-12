@@ -17,6 +17,7 @@ define( 'AIPEX_DGP_PATH', plugin_dir_path( __FILE__ ) );
 define( 'AIPEX_DGP_URL', plugin_dir_url( __FILE__ ) );
 
 require_once AIPEX_DGP_PATH . 'includes/class-plugin.php';
+require_once AIPEX_DGP_PATH . 'includes/class-elementor-integration.php';
 
 register_activation_hook( __FILE__, array( 'Aipex_DGP\\Plugin', 'activate' ) );
 
@@ -24,5 +25,6 @@ add_action(
     'plugins_loaded',
     static function (): void {
         Aipex_DGP\Plugin::instance()->boot();
+        Aipex_DGP\Elementor_Integration::boot();
     }
 );
