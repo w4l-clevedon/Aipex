@@ -1,0 +1,76 @@
+.aipex-dgp-grid {
+    column-gap: 18px;
+    column-count: 4;
+}
+
+.aipex-dgp-item {
+    break-inside: avoid;
+    display: inline-block;
+    margin: 0 0 18px;
+    width: 100%;
+}
+
+.aipex-dgp-item img {
+    display: block;
+    height: auto;
+    width: 100%;
+}
+
+.aipex-dgp-item figcaption {
+    margin-top: 8px;
+}
+
+.aipex-dgp-buy {
+    margin-top: 10px;
+}
+
+.aipex-dgp-hotspot-image {
+    display: block;
+    height: auto;
+    width: 100%;
+}
+
+.aipex-dgp-hotspot-stage {
+    position: relative;
+}
+
+.aipex-dgp-hotspot {
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    position: absolute;
+    transform: translate(-50%, -50%);
+}
+
+.aipex-dgp-hotspot:focus,
+.aipex-dgp-hotspot:hover {
+    border-color: currentColor;
+    outline: 2px solid currentColor;
+}
+
+.aipex-dgp-hotspot-tooltip {
+    background: #111;
+    border-radius: 4px;
+    color: #fff;
+    display: none;
+    font-size: 14px;
+    left: 50%;
+    min-width: 140px;
+    padding: 8px 10px;
+    pointer-events: none;
+    position: absolute;
+    top: 100%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
+.aipex-dgp-hotspot:focus .aipex-dgp-hotspot-tooltip,
+.aipex-dgp-hotspot:hover .aipex-dgp-hotspot-tooltip {
+    display: block;
+}
+
+@media (max-width: 767px) {
+    .aipex-dgp-grid {
+        column-count: 2;
+    }
+}
